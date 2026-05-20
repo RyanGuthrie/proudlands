@@ -38,7 +38,7 @@
 	let activeLayerId = $state<LayerId>('usgs-topo');
 	let sidebarOpen = $state(true);
 
-	let centerLat = $state(44.0);
+	let centerLat = $state(40.0);
 	let centerLng = $state(-105.5);
 	let zoom = $state(6);
 
@@ -47,6 +47,24 @@
 	let inputLng = $state('');
 	let gotoError = $state('');
 	let latInput: HTMLInputElement;
+
+	const COOKIE = 'map_view';
+	const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
+	function getPositionCookie(): { lat: number; lng: number; zoom: number } | null {
+		const entry = document.cookie.split('; ').find((r) => r.startsWith(COOKIE + '='));
+		if (!entry) return null;
+		try {
+			return JSON.parse(decodeURIComponent(entry.slice(COOKIE.length + 1)));
+		} catch {
+			return null;
+		}
+	}
+
+	function setPositionCookie(lat: number, lng: number, z: number) {
+		const val = encodeURIComponent(JSON.stringify({ lat, lng, zoom: z }));
+		document.cookie = `${COOKIE}=${val}; max-age=${COOKIE_MAX_AGE}; path=/; SameSite=Lax`;
+	}
 
 	function fmt(val: number, decimals: number) {
 		return val.toFixed(decimals);
@@ -106,23 +124,33 @@
 	}
 
 	onMount(() => {
+		const saved = getPositionCookie();
+		const initialCenter: [number, number] = saved ? [saved.lng, saved.lat] : [-105.5, 44.0];
+		const initialZoom = saved ? saved.zoom : 6;
+
+		centerLat = initialCenter[1];
+		centerLng = initialCenter[0];
+		zoom = initialZoom;
+
 		map = new maplibregl.Map({
 			container: mapContainer,
 			style: makeStyle(activeLayerId),
-			center: [-105.5, 44.0],
-			zoom: 6,
+			center: initialCenter,
+			zoom: initialZoom,
 		});
 		map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 		map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
 
-		function syncPosition() {
+		map.on('move', () => {
 			const c = map.getCenter();
 			centerLat = c.lat;
 			centerLng = c.lng;
 			zoom = map.getZoom();
-		}
+		});
 
-		map.on('move', syncPosition);
+		map.on('moveend', () => {
+			setPositionCookie(centerLat, centerLng, zoom);
+		});
 	});
 
 	onDestroy(() => {
@@ -170,7 +198,7 @@
 				</section>
 
 				<section class="sidebar-section">
-					<h2>Conditions</h2>
+					<h2>Trails on map</h2>
 					<dl class="data-list">
 						<dt>Season</dt>
 						<dd>Spring</dd>

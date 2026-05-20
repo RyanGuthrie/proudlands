@@ -42,8 +42,46 @@
 	let centerLng = $state(-105.5);
 	let zoom = $state(6);
 
+	let gotoOpen = $state(false);
+	let inputLat = $state('');
+	let inputLng = $state('');
+	let gotoError = $state('');
+	let latInput: HTMLInputElement;
+
 	function fmt(val: number, decimals: number) {
 		return val.toFixed(decimals);
+	}
+
+	function toggleGoto() {
+		gotoOpen = !gotoOpen;
+		gotoError = '';
+		if (gotoOpen) {
+			// focus after transition starts
+			setTimeout(() => latInput?.focus(), 50);
+		}
+	}
+
+	function gotoCoords() {
+		const lat = parseFloat(inputLat);
+		const lng = parseFloat(inputLng);
+		if (isNaN(lat) || lat < -90 || lat > 90) {
+			gotoError = 'Latitude must be between -90 and 90';
+			return;
+		}
+		if (isNaN(lng) || lng < -180 || lng > 180) {
+			gotoError = 'Longitude must be between -180 and 180';
+			return;
+		}
+		gotoError = '';
+		gotoOpen = false;
+		inputLat = '';
+		inputLng = '';
+		map.flyTo({ center: [lng, lat], zoom: Math.max(zoom, 10), duration: 1200 });
+	}
+
+	function handleGotoKey(e: KeyboardEvent) {
+		if (e.key === 'Enter') gotoCoords();
+		if (e.key === 'Escape') { gotoOpen = false; gotoError = ''; }
 	}
 
 	function makeStyle(layerId: LayerId): StyleSpecification {
@@ -103,22 +141,6 @@
 
 	<!-- Body: sidebar + map -->
 	<div class="map-body">
-		<!-- Layer switcher: always visible, floating on map -->
-		<div class="layer-switcher">
-			<span class="layer-switcher-label">Base Layer</span>
-			<div class="layer-list">
-				{#each layers as layer}
-					<button
-						class="layer-btn"
-						class:active={activeLayerId === layer.id}
-						onclick={() => switchLayer(layer.id)}
-					>
-						{layer.label}
-					</button>
-				{/each}
-			</div>
-		</div>
-
 		<!-- Sidebar -->
 		<aside class="sidebar" class:collapsed={!sidebarOpen}>
 			<div class="sidebar-content">
@@ -175,8 +197,61 @@
 			</button>
 		</aside>
 
-		<!-- Map -->
-		<div bind:this={mapContainer} class="map-container"></div>
+		<!-- Map area: overlays are scoped here so they stay within the map -->
+		<div class="map-area">
+			<!-- Coordinate jump popout -->
+			<div class="goto-wrap" class:open={gotoOpen}>
+				<button class="goto-trigger" onclick={toggleGoto} aria-label="Go to coordinates" title="Go to coordinates">
+					<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+						<circle cx="8" cy="8" r="3"/>
+						<line x1="8" y1="1" x2="8" y2="4"/>
+						<line x1="8" y1="12" x2="8" y2="15"/>
+						<line x1="1" y1="8" x2="4" y2="8"/>
+						<line x1="12" y1="8" x2="15" y2="8"/>
+					</svg>
+				</button>
+				<div class="goto-form">
+					<input
+						bind:this={latInput}
+						type="text"
+						inputmode="decimal"
+						placeholder="Latitude"
+						bind:value={inputLat}
+						onkeydown={handleGotoKey}
+					/>
+					<span class="goto-sep">,</span>
+					<input
+						type="text"
+						inputmode="decimal"
+						placeholder="Longitude"
+						bind:value={inputLng}
+						onkeydown={handleGotoKey}
+					/>
+					<button class="goto-go" onclick={gotoCoords}>Go</button>
+				</div>
+				{#if gotoError}
+					<div class="goto-error">{gotoError}</div>
+				{/if}
+			</div>
+
+			<!-- Layer switcher: always visible, floating on map -->
+			<div class="layer-switcher">
+				<span class="layer-switcher-label">Base Layer</span>
+				<div class="layer-list">
+					{#each layers as layer}
+						<button
+							class="layer-btn"
+							class:active={activeLayerId === layer.id}
+							onclick={() => switchLayer(layer.id)}
+						>
+							{layer.label}
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div bind:this={mapContainer} class="map-container"></div>
+		</div>
 	</div>
 </div>
 
@@ -222,7 +297,13 @@
 		display: flex;
 		flex: 1;
 		overflow: hidden;
+	}
+
+	.map-area {
+		flex: 1;
 		position: relative;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	/* Sidebar */
@@ -377,7 +458,121 @@
 
 	/* Map */
 	.map-container {
-		flex: 1;
-		min-width: 0;
+		width: 100%;
+		height: 100%;
+	}
+
+	/* Coordinate jump popout */
+	.goto-wrap {
+		position: absolute;
+		top: 1rem;
+		left: 1rem;
+		z-index: 10;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.4rem;
+	}
+
+	.goto-trigger {
+		width: 36px;
+		height: 36px;
+		border-radius: 6px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+		transition: color 0.15s, background 0.15s;
+		flex-shrink: 0;
+	}
+
+	.goto-trigger:hover,
+	.goto-wrap.open .goto-trigger {
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+		border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+	}
+
+	.goto-form {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.4rem 0.5rem;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+		max-width: 0;
+		overflow: hidden;
+		opacity: 0;
+		transition: max-width 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+		padding-left: 0;
+		padding-right: 0;
+		white-space: nowrap;
+	}
+
+	.goto-wrap.open .goto-form {
+		max-width: 340px;
+		opacity: 1;
+		padding: 0.4rem 0.5rem;
+	}
+
+	.goto-form input {
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: var(--text);
+		font-family: inherit;
+		font-size: 0.82rem;
+		padding: 0.3rem 0.5rem;
+		width: 120px;
+		outline: none;
+		transition: border-color 0.15s;
+	}
+
+	.goto-form input:focus {
+		border-color: var(--accent);
+	}
+
+	.goto-form input::placeholder {
+		color: var(--text-muted);
+	}
+
+	.goto-sep {
+		color: var(--text-muted);
+		font-size: 0.9rem;
+		flex-shrink: 0;
+	}
+
+	.goto-go {
+		background: var(--accent);
+		border: none;
+		border-radius: 4px;
+		color: #0f1117;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.8rem;
+		font-weight: 600;
+		padding: 0.3rem 0.7rem;
+		flex-shrink: 0;
+		transition: background 0.15s;
+	}
+
+	.goto-go:hover {
+		background: var(--accent-hover);
+	}
+
+	.goto-error {
+		background: color-mix(in srgb, #e05c5c 12%, var(--surface));
+		border: 1px solid color-mix(in srgb, #e05c5c 40%, transparent);
+		border-radius: 4px;
+		color: #f08080;
+		font-size: 0.75rem;
+		padding: 0.3rem 0.6rem;
+		white-space: nowrap;
 	}
 </style>

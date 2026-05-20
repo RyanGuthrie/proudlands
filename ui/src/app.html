@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Proud Lands</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		%sveltekit.head%
+		<style>
+			:root {
+				color-scheme: dark;
+				--bg: #0f1117;
+				--surface: #1a1d27;
+				--border: #2e3148;
+				--text: #e2e8f0;
+				--text-muted: #8892a4;
+				--accent: #7c9ef8;
+				--accent-hover: #a5bcff;
+			}
+
+			*, *::before, *::after {
+				box-sizing: border-box;
+			}
+
+			html, body {
+				margin: 0;
+				padding: 0;
+				background-color: var(--bg);
+				color: var(--text);
+				font-family: system-ui, -apple-system, sans-serif;
+			}
+
+			a {
+				color: var(--accent);
+				text-decoration: none;
+			}
+
+			a:hover {
+				color: var(--accent-hover);
+			}
+		</style>
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

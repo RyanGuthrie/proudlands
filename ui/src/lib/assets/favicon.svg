@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Sky background -->
+  <rect width="64" height="64" rx="8" fill="#0f1117"/>
+
+  <!-- Moon -->
+  <circle cx="50" cy="12" r="6" fill="#d4c97a" opacity="0.9"/>
+  <circle cx="53" cy="10" r="5" fill="#0f1117"/>
+
+  <!-- Stars -->
+  <circle cx="10" cy="8" r="1" fill="#e2e8f0" opacity="0.8"/>
+  <circle cx="22" cy="5" r="0.8" fill="#e2e8f0" opacity="0.7"/>
+  <circle cx="38" cy="10" r="0.8" fill="#e2e8f0" opacity="0.6"/>
+  <circle cx="6" cy="20" r="0.7" fill="#e2e8f0" opacity="0.5"/>
+
+  <!-- Mountain (right, distant) -->
+  <polygon points="38,48 56,20 74,48" fill="#2a3a5c"/>
+
+  <!-- Mountain (left, main) -->
+  <polygon points="4,52 28,16 52,52" fill="#1e2d4a"/>
+
+  <!-- Ground strip -->
+  <rect x="0" y="50" width="64" height="14" rx="0" fill="#1e2d4a"/>
+  <rect x="0" y="52" width="64" height="12" rx="0" fill="#162438"/>
+
+  <!-- Snow caps -->
+  <polygon points="28,16 21,32 35,32" fill="#d8e8f5" opacity="0.85"/>
+  <polygon points="56,20 51,30 61,30" fill="#d8e8f5" opacity="0.7"/>
+
+  <!-- Pine tree trunk -->
+  <rect x="27" y="44" width="4" height="8" fill="#5c3d1e"/>
+
+  <!-- Pine tree layers (bottom to top) -->
+  <polygon points="29,46 18,54 40,54" fill="#2d6a2d"/>
+  <polygon points="29,40 19,50 39,50" fill="#2d6a2d"/>
+  <polygon points="29,34 20,46 38,46" fill="#357a35"/>
+  <polygon points="29,28 21,42 37,42" fill="#3d8c3d"/>
+  <polygon points="29,23 22,37 36,37" fill="#45a045"/>
+  <!-- Tree tip -->
+  <polygon points="29,18 24,30 34,30" fill="#4db34d"/>
+</svg>

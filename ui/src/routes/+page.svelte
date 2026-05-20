@@ -1,3 +1,3 @@
 
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<h1>Proud Lands</h1>
+<p>A website dedicated to making our public lands accessible for everyone</p>

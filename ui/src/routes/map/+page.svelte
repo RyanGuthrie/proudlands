@@ -2,6 +2,8 @@
 	import { onMount, onDestroy } from 'svelte';
 	import maplibregl, { type StyleSpecification } from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
+	import { api } from '$lib/api/client';
+	import type { components } from '$lib/api/types';
 
 	let mapContainer: HTMLDivElement;
 	let map: maplibregl.Map;
@@ -177,6 +179,77 @@
 	onDestroy(() => {
 		map?.remove();
 	});
+
+	// Trails
+	type TrailDetail = components['schemas']['TrailOutputBody'];
+
+	const TRAIL_PAGE_SIZE = 5;
+
+	let trailNames = $state<string[]>([]);
+	let trailsError = $state('');
+	let trailSearch = $state('');
+	let showAllTrails = $state(false);
+	let selectedTrail = $state('');
+	let trailDetail = $state<TrailDetail | null>(null);
+	let trailDetailError = $state('');
+	let trailDetailLoading = $state(false);
+
+	let filteredTrails = $derived(
+		trailSearch.trim()
+			? trailNames.filter((n) => n.toLowerCase().includes(trailSearch.toLowerCase().trim()))
+			: trailNames
+	);
+
+	let displayedTrails = $derived(
+		showAllTrails || trailSearch.trim() ? filteredTrails : filteredTrails.slice(0, TRAIL_PAGE_SIZE)
+	);
+
+	let hiddenCount = $derived(
+		!trailSearch.trim() && !showAllTrails ? Math.max(0, filteredTrails.length - TRAIL_PAGE_SIZE) : 0
+	);
+
+	async function fetchTrails() {
+		const { data, error } = await api.GET('/trail');
+		if (error || !data) {
+			trailsError = 'Could not load trails';
+			return;
+		}
+		trailNames = data.resources ?? [];
+	}
+
+	async function selectTrail(name: string) {
+		if (selectedTrail === name) {
+			selectedTrail = '';
+			trailDetail = null;
+			return;
+		}
+		selectedTrail = name;
+		trailDetail = null;
+		trailDetailError = '';
+		trailDetailLoading = true;
+		const { data, error } = await api.GET('/trail/{name}', { params: { path: { name } } });
+		trailDetailLoading = false;
+		if (error || !data) {
+			trailDetailError = 'Could not load trail details';
+			return;
+		}
+		trailDetail = data;
+	}
+
+	async function flyToTrail(name: string) {
+		let detail: TrailDetail | null = selectedTrail === name ? trailDetail : null;
+		if (!detail) {
+			const { data } = await api.GET('/trail/{name}', { params: { path: { name } } });
+			if (data) detail = data;
+		}
+		if (detail) {
+			map.flyTo({ center: [detail.longitude, detail.latitude], zoom: Math.max(zoom, 12), duration: 1200 });
+		}
+	}
+
+	onMount(() => {
+		fetchTrails();
+	});
 </script>
 
 <div class="map-page">
@@ -218,18 +291,85 @@
 					</dl>
 				</section>
 
-				<section class="sidebar-section">
-					<h2>Trails on map</h2>
-					<dl class="data-list">
-						<dt>Season</dt>
-						<dd>Spring</dd>
-						<dt>Snow Level</dt>
-						<dd>8,500 ft</dd>
-						<dt>Fire Danger</dt>
-						<dd>Low</dd>
-						<dt>Road Access</dt>
-						<dd>Open</dd>
-					</dl>
+				<section class="sidebar-section trails-section">
+					<h2>Trails</h2>
+
+					<div class="trail-search-wrap">
+						<svg class="trail-search-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+							<circle cx="6.5" cy="6.5" r="5"/>
+							<line x1="10.5" y1="10.5" x2="15" y2="15"/>
+						</svg>
+						<input
+							class="trail-search"
+							type="search"
+							placeholder="Search trails…"
+							bind:value={trailSearch}
+						/>
+					</div>
+
+					{#if trailsError}
+						<p class="trail-error">{trailsError}</p>
+					{:else if trailNames.length === 0}
+						<p class="trail-empty">No trails found</p>
+					{:else if filteredTrails.length === 0}
+						<p class="trail-empty">No trails match "{trailSearch}"</p>
+					{:else}
+						<ul class="trail-list">
+							{#each displayedTrails as name}
+								<li class="trail-row">
+									<button
+										class="trail-item"
+										class:active={selectedTrail === name}
+										onclick={() => selectTrail(name)}
+									>
+										{name}
+									</button>
+									<button
+										class="trail-fly"
+										onclick={() => flyToTrail(name)}
+										title="Fly to trail"
+									>
+										<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+											<path d="M8 0a5 5 0 0 0-5 5c0 4 5 11 5 11s5-7 5-11a5 5 0 0 0-5-5zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
+										</svg>
+									</button>
+								</li>
+							{/each}
+						</ul>
+						{#if hiddenCount > 0}
+							<button class="trail-more" onclick={() => (showAllTrails = true)}>
+								+{hiddenCount} more
+							</button>
+						{:else if showAllTrails && filteredTrails.length > TRAIL_PAGE_SIZE}
+							<button class="trail-more" onclick={() => (showAllTrails = false)}>
+								Show less
+							</button>
+						{/if}
+					{/if}
+
+					{#if selectedTrail}
+						<div class="trail-detail">
+							{#if trailDetailLoading}
+								<p class="trail-loading">Loading…</p>
+							{:else if trailDetailError}
+								<p class="trail-error">{trailDetailError}</p>
+							{:else if trailDetail}
+								<div class="trail-detail-header">
+									<span class="trail-name">{trailDetail.name}</span>
+									<span class="trail-difficulty difficulty-{trailDetail.difficulty}">{trailDetail.difficulty}</span>
+								</div>
+								<p class="trail-description">{trailDetail.description}</p>
+								<dl class="data-list">
+									<dt>Length</dt>
+									<dd>{trailDetail.length_miles} mi</dd>
+									<dt>Latitude</dt>
+									<dd>{trailDetail.latitude.toFixed(4)}°</dd>
+									<dt>Longitude</dt>
+									<dd>{trailDetail.longitude.toFixed(4)}°</dd>
+								</dl>
+							{/if}
+						</div>
+					{/if}
 				</section>
 
 			</div>
@@ -623,5 +763,194 @@
 		font-size: 0.75rem;
 		padding: 0.3rem 0.6rem;
 		white-space: nowrap;
+	}
+
+	/* Trails */
+	.trail-search-wrap {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.trail-search-icon {
+		position: absolute;
+		left: 0.45rem;
+		color: var(--text-muted);
+		pointer-events: none;
+		flex-shrink: 0;
+	}
+
+	.trail-search {
+		width: 100%;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: var(--text);
+		font-family: inherit;
+		font-size: 0.78rem;
+		padding: 0.3rem 0.5rem 0.3rem 1.75rem;
+		outline: none;
+		transition: border-color 0.15s;
+	}
+
+	.trail-search:focus {
+		border-color: var(--accent);
+	}
+
+	.trail-search::placeholder {
+		color: var(--text-muted);
+	}
+
+	/* hide the native clear button on search inputs */
+	.trail-search::-webkit-search-cancel-button {
+		-webkit-appearance: none;
+	}
+
+	.trail-more {
+		background: none;
+		border: none;
+		color: var(--accent);
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.78rem;
+		padding: 0.1rem 0;
+		text-align: left;
+		transition: color 0.15s;
+	}
+
+	.trail-more:hover {
+		color: var(--accent-hover);
+	}
+
+	.trails-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.trail-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.trail-row {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.trail-item {
+		background: transparent;
+		border: 1px solid transparent;
+		border-radius: 4px;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.82rem;
+		padding: 0.3rem 0.5rem;
+		text-align: left;
+		transition: all 0.15s;
+		flex: 1;
+		min-width: 0;
+		text-transform: capitalize;
+	}
+
+	.trail-item:hover {
+		color: var(--text);
+		background: var(--border);
+	}
+
+	.trail-item.active {
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
+		color: var(--accent);
+		border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+	}
+
+	.trail-fly {
+		background: transparent;
+		border: none;
+		border-radius: 4px;
+		color: var(--text-muted);
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		padding: 0.3rem;
+		transition: color 0.15s, background 0.15s;
+	}
+
+	.trail-fly:hover {
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+	}
+
+	.trail-detail {
+		border-top: 1px solid var(--border);
+		padding-top: 0.6rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.trail-detail-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+
+	.trail-name {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.trail-difficulty {
+		font-size: 0.68rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		padding: 0.15rem 0.4rem;
+		border-radius: 3px;
+		flex-shrink: 0;
+	}
+
+	.difficulty-easy {
+		background: color-mix(in srgb, #4caf50 15%, transparent);
+		color: #81c784;
+	}
+
+	.difficulty-moderate {
+		background: color-mix(in srgb, #ff9800 15%, transparent);
+		color: #ffb74d;
+	}
+
+	.difficulty-hard {
+		background: color-mix(in srgb, #f44336 15%, transparent);
+		color: #e57373;
+	}
+
+	.trail-description {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		line-height: 1.5;
+	}
+
+	.trail-empty,
+	.trail-loading,
+	.trail-error {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+	}
+
+	.trail-error {
+		color: #f08080;
 	}
 </style>

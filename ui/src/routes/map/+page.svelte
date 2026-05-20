@@ -91,6 +91,14 @@
 		return val.toFixed(decimals);
 	}
 
+	let coordsCopied = $state(false);
+
+	function copyCoords(lat: number, lng: number) {
+		navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+		coordsCopied = true;
+		setTimeout(() => (coordsCopied = false), 2000);
+	}
+
 	function toggleGoto() {
 		gotoOpen = !gotoOpen;
 		gotoError = '';
@@ -363,10 +371,25 @@
 									<dt>Length</dt>
 									<dd>{trailDetail.length_miles} mi</dd>
 									<dt>Latitude</dt>
-									<dd>{trailDetail.latitude.toFixed(4)}°</dd>
+									<dd>{fmt(Math.abs(trailDetail.latitude), 4)}° {trailDetail.latitude >= 0 ? 'N' : 'S'}</dd>
 									<dt>Longitude</dt>
-									<dd>{trailDetail.longitude.toFixed(4)}°</dd>
+									<dd>{fmt(Math.abs(trailDetail.longitude), 4)}° {trailDetail.longitude >= 0 ? 'E' : 'W'}</dd>
 								</dl>
+								<div class="location-actions">
+									<button class="loc-btn" onclick={() => copyCoords(trailDetail!.latitude, trailDetail!.longitude)}>
+										{#if coordsCopied}
+											<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 2.5L6 10 2.5 6.5 1 8l5 5 9-9z"/></svg>
+											Copied
+										{:else}
+											<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M4 4h8v10H4zM2 2h8v1H2zM6 0h8v12h-1V1H6z"/></svg>
+											Copy coords
+										{/if}
+									</button>
+									<button class="loc-btn" onclick={() => flyToTrail(selectedTrail)}>
+										<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a5 5 0 0 0-5 5c0 4 5 11 5 11s5-7 5-11a5 5 0 0 0-5-5zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
+										Go to
+									</button>
+								</div>
 							{/if}
 						</div>
 					{/if}
@@ -763,6 +786,33 @@
 		font-size: 0.75rem;
 		padding: 0.3rem 0.6rem;
 		white-space: nowrap;
+	}
+
+	/* Location actions */
+	.location-actions {
+		display: flex;
+		gap: 0.4rem;
+		margin-top: 0.5rem;
+	}
+
+	.loc-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.75rem;
+		padding: 0.25rem 0.5rem;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.loc-btn:hover {
+		color: var(--text);
+		border-color: var(--text-muted);
 	}
 
 	/* Trails */

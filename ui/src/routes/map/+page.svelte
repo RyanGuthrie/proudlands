@@ -68,6 +68,23 @@
 		document.cookie = `${COOKIE}=${val}; max-age=${COOKIE_MAX_AGE}; path=/; SameSite=Lax`;
 	}
 
+	function updateUrl(lat: number, lng: number, z: number) {
+		const params = new URLSearchParams(window.location.search);
+		params.set('lat', lat.toFixed(6));
+		params.set('lng', lng.toFixed(6));
+		params.set('zoom', z.toFixed(2));
+		history.replaceState(null, '', `${window.location.pathname}?${params}`);
+	}
+
+	function getUrlPosition(): { lat: number; lng: number; zoom: number } | null {
+		const p = new URLSearchParams(window.location.search);
+		const lat = parseFloat(p.get('lat') ?? '');
+		const lng = parseFloat(p.get('lng') ?? '');
+		const zoom = parseFloat(p.get('zoom') ?? '');
+		if (isNaN(lat) || isNaN(lng)) return null;
+		return { lat, lng, zoom: isNaN(zoom) ? DEFAULT_CENTER.zoom : zoom };
+	}
+
 	function fmt(val: number, decimals: number) {
 		return val.toFixed(decimals);
 	}
@@ -126,7 +143,8 @@
 	}
 
 	onMount(() => {
-		const saved = getPositionCookie();
+		const fromUrl = getUrlPosition();
+		const saved = fromUrl ?? getPositionCookie();
 		const initialCenter: [number, number] = saved ? [saved.lng, saved.lat] : [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat];
 		const initialZoom = saved ? saved.zoom : DEFAULT_CENTER.zoom;
 
@@ -152,6 +170,7 @@
 
 		map.on('moveend', () => {
 			setPositionCookie(centerLat, centerLng, zoom);
+			updateUrl(centerLat, centerLng, zoom);
 		});
 	});
 

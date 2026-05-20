@@ -35,11 +35,13 @@
 
 	type LayerId = (typeof layers)[number]['id'];
 
+	const DEFAULT_CENTER = { lat: 39.9795, lng: -105.5776, zoom: 15.5 };
+
 	let activeLayerId = $state<LayerId>('usgs-topo');
 	let sidebarOpen = $state(true);
 
-	let centerLat = $state(40.0);
-	let centerLng = $state(-105.5);
+	let centerLat = $state(DEFAULT_CENTER.lat);
+	let centerLng = $state(DEFAULT_CENTER.lng);
 	let zoom = $state(6);
 
 	let gotoOpen = $state(false);
@@ -125,8 +127,8 @@
 
 	onMount(() => {
 		const saved = getPositionCookie();
-		const initialCenter: [number, number] = saved ? [saved.lng, saved.lat] : [-105.5, 44.0];
-		const initialZoom = saved ? saved.zoom : 6;
+		const initialCenter: [number, number] = saved ? [saved.lng, saved.lat] : [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat];
+		const initialZoom = saved ? saved.zoom : DEFAULT_CENTER.zoom;
 
 		centerLat = initialCenter[1];
 		centerLng = initialCenter[0];

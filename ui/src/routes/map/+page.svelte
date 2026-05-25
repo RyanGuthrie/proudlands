@@ -182,6 +182,10 @@
 			setPositionCookie(centerLat, centerLng, zoom);
 			updateUrl(centerLat, centerLng, zoom);
 		});
+
+		map.on('style.load', () => {
+			applyTrailGeometry(activeTrailGeometry);
+		});
 	});
 
 	onDestroy(() => {
@@ -189,7 +193,65 @@
 	});
 
 	// Trails
-	type TrailDetail = components['schemas']['TrailOutputBody'];
+	type TrailDetail = components['schemas']['TrailOutput'];
+	type TrailGeometry = components['schemas']['TrailGeometryOutputBody'];
+
+	const SOURCE_ID = 'trail-geometry';
+	const LAYER_IDS = ['trail-line-solid', 'trail-line-dashed', 'trail-line-dotted'] as const;
+
+	let activeTrailGeometry = $state<TrailGeometry | null>(null);
+
+	function buildFeatureCollection(geom: TrailGeometry): maplibregl.GeoJSONSourceSpecification['data'] {
+		return {
+			type: 'FeatureCollection',
+			features: (geom.segments ?? []).map((seg) => ({
+				type: 'Feature' as const,
+				geometry: {
+					type: 'LineString' as const,
+					coordinates: (seg.coordinates ?? []) as [number, number][],
+				},
+				properties: { color: seg.color, style: seg.style, width: seg.width },
+			})),
+		};
+	}
+
+	function applyTrailGeometry(geom: TrailGeometry | null) {
+		if (!map) return;
+		for (const id of LAYER_IDS) {
+			if (map.getLayer(id)) map.removeLayer(id);
+		}
+		if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+		if (!geom) return;
+
+		map.addSource(SOURCE_ID, { type: 'geojson', data: buildFeatureCollection(geom) });
+
+		map.addLayer({
+			id: 'trail-line-solid',
+			type: 'line',
+			source: SOURCE_ID,
+			filter: ['==', ['get', 'style'], 'solid'],
+			layout: { 'line-cap': 'round', 'line-join': 'round' },
+			paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.9 },
+		});
+
+		map.addLayer({
+			id: 'trail-line-dashed',
+			type: 'line',
+			source: SOURCE_ID,
+			filter: ['==', ['get', 'style'], 'dashed'],
+			layout: { 'line-cap': 'butt', 'line-join': 'round' },
+			paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-dasharray': [6, 4], 'line-opacity': 0.9 },
+		});
+
+		map.addLayer({
+			id: 'trail-line-dotted',
+			type: 'line',
+			source: SOURCE_ID,
+			filter: ['==', ['get', 'style'], 'dotted'],
+			layout: { 'line-cap': 'round', 'line-join': 'round' },
+			paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-dasharray': [1, 4], 'line-opacity': 0.9 },
+		});
+	}
 
 	const TRAIL_PAGE_SIZE = 5;
 
@@ -203,9 +265,10 @@
 	let trailDetailLoading = $state(false);
 
 	let filteredTrails = $derived(
-		trailSearch.trim()
+		[...(trailSearch.trim()
 			? trailNames.filter((n) => n.toLowerCase().includes(trailSearch.toLowerCase().trim()))
-			: trailNames
+			: trailNames)
+		].sort((a, b) => a.localeCompare(b))
 	);
 
 	let displayedTrails = $derived(
@@ -229,19 +292,34 @@
 		if (selectedTrail === name) {
 			selectedTrail = '';
 			trailDetail = null;
+			activeTrailGeometry = null;
+			applyTrailGeometry(null);
 			return;
 		}
 		selectedTrail = name;
 		trailDetail = null;
 		trailDetailError = '';
 		trailDetailLoading = true;
-		const { data, error } = await api.GET('/trail/{name}', { params: { path: { name } } });
+		activeTrailGeometry = null;
+		applyTrailGeometry(null);
+
+		const [metaResult, geoResult] = await Promise.all([
+			api.GET('/trail/{name}', { params: { path: { name } } }),
+			api.GET('/trail/{name}/geometry', { params: { path: { name } } }),
+		]);
+
 		trailDetailLoading = false;
-		if (error || !data) {
+
+		if (metaResult.error || !metaResult.data) {
 			trailDetailError = 'Could not load trail details';
-			return;
+		} else {
+			trailDetail = metaResult.data;
 		}
-		trailDetail = data;
+
+		if (!geoResult.error && geoResult.data) {
+			activeTrailGeometry = geoResult.data;
+			applyTrailGeometry(activeTrailGeometry);
+		}
 	}
 
 	async function flyToTrail(name: string) {

@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trail/{name}/geometry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get trail line geometry */
+        get: operations["get-trail-geometry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -89,6 +106,15 @@ export interface components {
              */
             type: string;
         };
+        TrailGeometryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/TrailGeometryOutputBody.json
+             */
+            readonly $schema?: string;
+            segments: components["schemas"]["TrailSegment"][] | null;
+        };
         TrailListOutputBody: {
             /**
              * Format: uri
@@ -99,11 +125,11 @@ export interface components {
             /** @description Names of available trails */
             resources: string[] | null;
         };
-        TrailOutputBody: {
+        TrailOutput: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/TrailOutputBody.json
+             * @example https://example.com/schemas/TrailOutput.json
              */
             readonly $schema?: string;
             description: string;
@@ -116,6 +142,14 @@ export interface components {
             /** Format: double */
             longitude: number;
             name: string;
+        };
+        TrailSegment: {
+            color: string;
+            coordinates: (number[] | null)[] | null;
+            /** @enum {string} */
+            style: "solid" | "dashed" | "dotted";
+            /** Format: double */
+            width: number;
         };
     };
     responses: never;
@@ -173,7 +207,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TrailOutputBody"];
+                    "application/json": components["schemas"]["TrailOutput"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-trail-geometry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trail name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrailGeometryOutputBody"];
                 };
             };
             /** @description Error */

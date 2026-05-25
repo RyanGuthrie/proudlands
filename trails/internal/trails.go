@@ -31,6 +31,28 @@ type TrailOutput struct {
 	Longitude   float64 `json:"longitude"`
 }
 
+type TrailLineStyle string
+
+const (
+	TrailLineStyleSolid  TrailLineStyle = "solid"
+	TrailLineStyleDashed TrailLineStyle = "dashed"
+	TrailLineStyleDotted TrailLineStyle = "dotted"
+)
+
+// TrailSegment is a contiguous run of [longitude, latitude] coordinates with uniform visual style.
+type TrailSegment struct {
+	Coordinates [][2]float64   `json:"coordinates"`
+	Color       string         `json:"color"`
+	Style       TrailLineStyle `json:"style" enum:"solid,dashed,dotted"`
+	Width       float64        `json:"width"`
+}
+
+type TrailGeometryOutput struct {
+	Body struct {
+		Segments []TrailSegment `json:"segments"`
+	}
+}
+
 // stub data — replace with real storage later
 var knownTrails = map[string]TrailOutput{
 	"blue-ridge-loop": {
@@ -50,7 +72,7 @@ var knownTrails = map[string]TrailOutput{
 		Longitude:   -30.0,
 	},
 	"altalakes": {
-		Name:        "altalakes",
+		Name:        "Alta Lakes",
 		Description: "altalakes",
 		LengthMiles: 1.0,
 		Difficulty:  "hard",
@@ -1811,6 +1833,41 @@ var knownTrails = map[string]TrailOutput{
 	},
 }
 
+var knownTrailGeometry = map[string][]TrailSegment{
+	"caribou": {
+		{
+			Coordinates: [][2]float64{
+				{-105.5820, 39.9760},
+				{-105.5800, 39.9775},
+				{-105.5776, 39.9795},
+			},
+			Color: "#4caf50",
+			Style: TrailLineStyleSolid,
+			Width: 4,
+		},
+		{
+			Coordinates: [][2]float64{
+				{-105.5776, 39.9795},
+				{-105.5750, 39.9810},
+				{-105.5730, 39.9830},
+			},
+			Color: "#ff9800",
+			Style: TrailLineStyleDashed,
+			Width: 4,
+		},
+		{
+			Coordinates: [][2]float64{
+				{-105.5730, 39.9830},
+				{-105.5710, 39.9820},
+				{-105.5700, 39.9800},
+			},
+			Color: "#e05c5c",
+			Style: TrailLineStyleDotted,
+			Width: 4,
+		},
+	},
+}
+
 func registerTrailRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-trails",
@@ -1840,5 +1897,33 @@ func registerTrailRoutes(api huma.API) {
 		return &TrailOutputBody{
 			Body: trail,
 		}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-trail-geometry",
+		Method:      http.MethodGet,
+		Path:        "/trail/{name}/geometry",
+		Summary:     "Get trail line geometry",
+		Tags:        []string{"Trails"},
+	}, func(ctx context.Context, input *TrailInput) (*TrailGeometryOutput, error) {
+		trail, ok := knownTrails[input.Name]
+		if !ok {
+			return nil, huma.Error404NotFound(fmt.Sprintf("trail %q not found", input.Name))
+		}
+		segments, ok := knownTrailGeometry[input.Name]
+		if !ok {
+			segments = []TrailSegment{{
+				Coordinates: [][2]float64{
+					{trail.Longitude - 0.005, trail.Latitude},
+					{trail.Longitude + 0.005, trail.Latitude},
+				},
+				Color: "#4fc3f7",
+				Style: TrailLineStyleSolid,
+				Width: 3,
+			}}
+		}
+		out := &TrailGeometryOutput{}
+		out.Body.Segments = segments
+		return out, nil
 	})
 }

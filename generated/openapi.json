@@ -82,6 +82,33 @@
         },
         "type": "object"
       },
+      "TrailGeometryOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TrailGeometryOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/TrailSegment"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "segments"
+        ],
+        "type": "object"
+      },
       "TrailListOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -110,13 +137,13 @@
         ],
         "type": "object"
       },
-      "TrailOutputBody": {
+      "TrailOutput": {
         "additionalProperties": false,
         "properties": {
           "$schema": {
             "description": "A URL to the JSON Schema for this object.",
             "examples": [
-              "https://example.com/schemas/TrailOutputBody.json"
+              "https://example.com/schemas/TrailOutput.json"
             ],
             "format": "uri",
             "readOnly": true,
@@ -156,6 +183,51 @@
           "difficulty",
           "latitude",
           "longitude"
+        ],
+        "type": "object"
+      },
+      "TrailSegment": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "type": "string"
+          },
+          "coordinates": {
+            "items": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "style": {
+            "enum": [
+              "solid",
+              "dashed",
+              "dotted"
+            ],
+            "type": "string"
+          },
+          "width": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "coordinates",
+          "color",
+          "style",
+          "width"
         ],
         "type": "object"
       }
@@ -218,7 +290,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TrailOutputBody"
+                  "$ref": "#/components/schemas/TrailOutput"
                 }
               }
             },
@@ -236,6 +308,49 @@
           }
         },
         "summary": "Get trail metadata",
+        "tags": [
+          "Trails"
+        ]
+      }
+    },
+    "/trail/{name}/geometry": {
+      "get": {
+        "operationId": "get-trail-geometry",
+        "parameters": [
+          {
+            "description": "Trail name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Trail name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailGeometryOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get trail line geometry",
         "tags": [
           "Trails"
         ]

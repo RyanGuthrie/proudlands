@@ -53,6 +53,38 @@ type TrailGeometryOutput struct {
 	}
 }
 
+type POIIconType string
+
+const (
+	POIIconTrailhead POIIconType = "trailhead"
+	POIIconParking   POIIconType = "parking"
+	POIIconCampsite  POIIconType = "campsite"
+	POIIconViewpoint POIIconType = "viewpoint"
+	POIIconWater     POIIconType = "water"
+	POIIconRestroom  POIIconType = "restroom"
+	POIIconPicnic    POIIconType = "picnic"
+	POIIconSummit    POIIconType = "summit"
+	POIIconJunction  POIIconType = "junction"
+	POIIconHazard    POIIconType = "hazard"
+	POIIconHistoric  POIIconType = "historic"
+	POIIconGeneral   POIIconType = "general"
+)
+
+type PointOfInterest struct {
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Latitude    float64     `json:"latitude"`
+	Longitude   float64     `json:"longitude"`
+	IconType    POIIconType `json:"icon_type" enum:"trailhead,parking,campsite,viewpoint,water,restroom,picnic,summit,junction,hazard,historic,general"`
+	ImageURL    *string     `json:"image_url,omitempty"`
+}
+
+type TrailPOIOutput struct {
+	Body struct {
+		POIs []PointOfInterest `json:"pois"`
+	}
+}
+
 // stub data — replace with real storage later
 var knownTrails = map[string]TrailOutput{
 	"blue-ridge-loop": {
@@ -1868,6 +1900,46 @@ var knownTrailGeometry = map[string][]TrailSegment{
 	},
 }
 
+var knownTrailPOIs = map[string][]PointOfInterest{
+	"caribou": {
+		{
+			Name:        "Caribou Ranch Trailhead",
+			Description: "Main trailhead with a small parking area. The trail begins here and follows an old mining road into the hills.",
+			Latitude:    39.981061,
+			Longitude:   -105.578660,
+			IconType:    POIIconTrailhead,
+		},
+		{
+			Name:        "Caribou Town Site",
+			Description: "Site of the former Caribou silver mining town, active from the 1870s through the 1890s. Several building foundations are still visible.",
+			Latitude:    39.987209,
+			Longitude:   -105.577186,
+			IconType:    POIIconHistoric,
+		},
+		{
+			Name:        "Ridge Viewpoint",
+			Description: "Open ridgeline with sweeping views of the Indian Peaks Wilderness to the west and the Front Range to the east.",
+			Latitude:    39.993123,
+			Longitude:   -105.571700,
+			IconType:    POIIconViewpoint,
+		},
+		{
+			Name:        "North Boulder Creek Crossing",
+			Description: "Seasonal stream crossing. Water is generally reliable spring through mid-summer; may be dry by late August.",
+			Latitude:    40.000402,
+			Longitude:   -105.560042,
+			IconType:    POIIconWater,
+		},
+		{
+			Name:        "Mine Shaft Hazard",
+			Description: "Remnant open mine shaft — stay on trail and keep pets on leash. Do not approach the shaft opening.",
+			Latitude:    39.990446,
+			Longitude:   -105.575621,
+			IconType:    POIIconHazard,
+		},
+	},
+}
+
 func registerTrailRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-trails",
@@ -1924,6 +1996,24 @@ func registerTrailRoutes(api huma.API) {
 		}
 		out := &TrailGeometryOutput{}
 		out.Body.Segments = segments
+		return out, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-trail-pois",
+		Method:      http.MethodGet,
+		Path:        "/trail/{name}/pois",
+		Summary:     "Get points of interest for a trail",
+		Tags:        []string{"Trails"},
+	}, func(ctx context.Context, input *TrailInput) (*TrailPOIOutput, error) {
+		if _, ok := knownTrails[input.Name]; !ok {
+			return nil, huma.Error404NotFound(fmt.Sprintf("trail %q not found", input.Name))
+		}
+		out := &TrailPOIOutput{}
+		out.Body.POIs = knownTrailPOIs[input.Name]
+		if out.Body.POIs == nil {
+			out.Body.POIs = []PointOfInterest{}
+		}
 		return out, nil
 	})
 }

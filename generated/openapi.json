@@ -82,6 +82,53 @@
         },
         "type": "object"
       },
+      "PointOfInterest": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "icon_type": {
+            "enum": [
+              "trailhead",
+              "parking",
+              "campsite",
+              "viewpoint",
+              "water",
+              "restroom",
+              "picnic",
+              "summit",
+              "junction",
+              "hazard",
+              "historic",
+              "general"
+            ],
+            "type": "string"
+          },
+          "image_url": {
+            "type": "string"
+          },
+          "latitude": {
+            "format": "double",
+            "type": "number"
+          },
+          "longitude": {
+            "format": "double",
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "latitude",
+          "longitude",
+          "icon_type"
+        ],
+        "type": "object"
+      },
       "TrailGeometryOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -183,6 +230,33 @@
           "difficulty",
           "latitude",
           "longitude"
+        ],
+        "type": "object"
+      },
+      "TrailPOIOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TrailPOIOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "pois": {
+            "items": {
+              "$ref": "#/components/schemas/PointOfInterest"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "pois"
         ],
         "type": "object"
       },
@@ -351,6 +425,49 @@
           }
         },
         "summary": "Get trail line geometry",
+        "tags": [
+          "Trails"
+        ]
+      }
+    },
+    "/trail/{name}/pois": {
+      "get": {
+        "operationId": "get-trail-pois",
+        "parameters": [
+          {
+            "description": "Trail name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Trail name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailPOIOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get points of interest for a trail",
         "tags": [
           "Trails"
         ]

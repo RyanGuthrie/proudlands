@@ -189,17 +189,27 @@
 	});
 
 	onDestroy(() => {
+		clearPOIMarkers();
 		map?.remove();
 	});
 
 	// Trails
 	type TrailDetail = components['schemas']['TrailOutput'];
 	type TrailGeometry = components['schemas']['TrailGeometryOutputBody'];
+	type POI = components['schemas']['PointOfInterest'];
 
 	const SOURCE_ID = 'trail-geometry';
 	const LAYER_IDS = ['trail-line-solid', 'trail-line-dashed', 'trail-line-dotted'] as const;
 
+	const POI_ICON_LABELS: Record<string, string> = {
+		trailhead: 'TH', parking: 'P', campsite: 'C', viewpoint: 'V',
+		water: 'W', restroom: 'R', picnic: 'Pi', summit: 'S',
+		junction: 'J', hazard: '!', historic: 'H', general: '·',
+	};
+
 	let activeTrailGeometry = $state<TrailGeometry | null>(null);
+	let activePOI = $state<POI | null>(null);
+	let poiMarkers: Array<{ marker: maplibregl.Marker; poi: POI }> = [];
 
 	function buildFeatureCollection(geom: TrailGeometry): maplibregl.GeoJSONSourceSpecification['data'] {
 		return {
@@ -253,6 +263,37 @@
 		});
 	}
 
+	function clearPOIMarkers() {
+		for (const { marker } of poiMarkers) marker.remove();
+		poiMarkers = [];
+	}
+
+	function applyPOIs(pois: POI[]) {
+		clearPOIMarkers();
+		if (!map || pois.length === 0) return;
+		for (const poi of pois) {
+			const el = document.createElement('button');
+			el.className = `poi-marker poi-type-${poi.icon_type}`;
+			el.textContent = POI_ICON_LABELS[poi.icon_type] ?? '·';
+			el.title = poi.name;
+			el.addEventListener('click', (e) => {
+				e.stopPropagation();
+				activePOI = activePOI?.name === poi.name ? null : poi;
+			});
+			const marker = new maplibregl.Marker({ element: el })
+				.setLngLat([poi.longitude, poi.latitude])
+				.addTo(map);
+			poiMarkers.push({ marker, poi });
+		}
+	}
+
+	$effect(() => {
+		const sel = activePOI;
+		for (const { marker, poi } of poiMarkers) {
+			marker.getElement().classList.toggle('active', poi.name === sel?.name);
+		}
+	});
+
 	const TRAIL_PAGE_SIZE = 5;
 
 	let trailNames = $state<string[]>([]);
@@ -293,7 +334,9 @@
 			selectedTrail = '';
 			trailDetail = null;
 			activeTrailGeometry = null;
+			activePOI = null;
 			applyTrailGeometry(null);
+			clearPOIMarkers();
 			return;
 		}
 		selectedTrail = name;
@@ -301,11 +344,14 @@
 		trailDetailError = '';
 		trailDetailLoading = true;
 		activeTrailGeometry = null;
+		activePOI = null;
 		applyTrailGeometry(null);
+		clearPOIMarkers();
 
-		const [metaResult, geoResult] = await Promise.all([
+		const [metaResult, geoResult, poiResult] = await Promise.all([
 			api.GET('/trail/{name}', { params: { path: { name } } }),
 			api.GET('/trail/{name}/geometry', { params: { path: { name } } }),
+			api.GET('/trail/{name}/pois', { params: { path: { name } } }),
 		]);
 
 		trailDetailLoading = false;
@@ -319,6 +365,10 @@
 		if (!geoResult.error && geoResult.data) {
 			activeTrailGeometry = geoResult.data;
 			applyTrailGeometry(activeTrailGeometry);
+		}
+
+		if (!poiResult.error && poiResult.data) {
+			applyPOIs(poiResult.data.pois ?? []);
 		}
 	}
 
@@ -470,6 +520,19 @@
 								</div>
 							{/if}
 						</div>
+
+						{#if activePOI}
+							<div class="poi-detail">
+								<div class="poi-detail-header">
+									<span class="poi-badge poi-type-{activePOI.icon_type}">{POI_ICON_LABELS[activePOI.icon_type] ?? '·'}</span>
+									<span class="poi-name">{activePOI.name}</span>
+								</div>
+								<p class="poi-desc">{activePOI.description}</p>
+								{#if activePOI.image_url}
+									<img class="poi-image" src={activePOI.image_url} alt={activePOI.name} />
+								{/if}
+							</div>
+						{/if}
 					{/if}
 				</section>
 
@@ -1080,5 +1143,94 @@
 
 	.trail-error {
 		color: #f08080;
+	}
+
+	/* POI markers — :global() because they're imperative DOM elements */
+	:global(.poi-marker) {
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		border: 2px solid rgba(255, 255, 255, 0.85);
+		cursor: pointer;
+		font-size: 0.58rem;
+		font-weight: 700;
+		font-family: inherit;
+		color: #fff;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+		transition: transform 0.15s, box-shadow 0.15s;
+		line-height: 1;
+	}
+
+	:global(.poi-marker:hover),
+	:global(.poi-marker.active) {
+		transform: scale(1.25);
+		box-shadow: 0 3px 10px rgba(0, 0, 0, 0.65);
+		border-color: #fff;
+		z-index: 1;
+	}
+
+	:global(.poi-type-trailhead) { background: #4caf50; }
+	:global(.poi-type-parking)   { background: #2196f3; }
+	:global(.poi-type-campsite)  { background: #ff9800; }
+	:global(.poi-type-viewpoint) { background: #9c27b0; }
+	:global(.poi-type-water)     { background: #00bcd4; }
+	:global(.poi-type-restroom)  { background: #607d8b; }
+	:global(.poi-type-picnic)    { background: #8bc34a; }
+	:global(.poi-type-summit)    { background: #ef5350; }
+	:global(.poi-type-junction)  { background: #ff9800; }
+	:global(.poi-type-hazard)    { background: #ef5350; }
+	:global(.poi-type-historic)  { background: #795548; }
+	:global(.poi-type-general)   { background: #78909c; }
+
+	/* POI detail in sidebar */
+	.poi-detail {
+		border-top: 1px solid var(--border);
+		padding-top: 0.6rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.poi-detail-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.poi-badge {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		font-size: 0.55rem;
+		font-weight: 700;
+		color: #fff;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+	}
+
+	.poi-name {
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: var(--text);
+		min-width: 0;
+	}
+
+	.poi-desc {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		line-height: 1.5;
+	}
+
+	.poi-image {
+		width: 100%;
+		border-radius: 4px;
+		object-fit: cover;
+		max-height: 160px;
 	}
 </style>

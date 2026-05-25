@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trail/{name}/pois": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get points of interest for a trail */
+        get: operations["get-trail-pois"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -106,6 +123,17 @@ export interface components {
              */
             type: string;
         };
+        PointOfInterest: {
+            description: string;
+            /** @enum {string} */
+            icon_type: "trailhead" | "parking" | "campsite" | "viewpoint" | "water" | "restroom" | "picnic" | "summit" | "junction" | "hazard" | "historic" | "general";
+            image_url?: string;
+            /** Format: double */
+            latitude: number;
+            /** Format: double */
+            longitude: number;
+            name: string;
+        };
         TrailGeometryOutputBody: {
             /**
              * Format: uri
@@ -142,6 +170,15 @@ export interface components {
             /** Format: double */
             longitude: number;
             name: string;
+        };
+        TrailPOIOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/TrailPOIOutputBody.json
+             */
+            readonly $schema?: string;
+            pois: components["schemas"]["PointOfInterest"][] | null;
         };
         TrailSegment: {
             color: string;
@@ -240,6 +277,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrailGeometryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-trail-pois": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trail name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrailPOIOutputBody"];
                 };
             };
             /** @description Error */

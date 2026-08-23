@@ -1,0 +1,357 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "7b6a2f79-970f-417e-b2c6-924c3661d2c4",
+      "properties": {
+        "id": "7b6a2f79-970f-417e-b2c6-924c3661d2c4",
+        "updated_date": "2026-08-23T20:38:54Z",
+        "time_created": "2026-08-23T20:38:54Z",
+        "last_updated_on_server": "2026-08-23T20:38:54Z",
+        "db_insert_date": "2026-08-23T20:38:54Z",
+        "deleted": false,
+        "title": "Tabeguache Peak - Via Mt. Shavano",
+        "public": false,
+        "color": "#E05C5C",
+        "hexcolor": "#E05C5C",
+        "is_active": true,
+        "revision": 1787517534,
+        "notes": "",
+        "track_type": "route",
+        "routing_mode": "pedestrian",
+        "uploaded_gpx_to_osm": null,
+        "flag": null,
+        "source": "https://www.14ers.com/route.php?route=tabe2",
+        "cover_photo_id": null,
+        "distance": 1458.2172108388968,
+        "total_ascent": 92.36000000000058,
+        "total_descent": 142.65000000000055,
+        "stopped_time": 0.0,
+        "total_time": 0.0,
+        "average_speed": 0,
+        "moving_time": 0.0,
+        "moving_speed": 0,
+        "activities": [],
+        "imported": true,
+        "folder": null,
+        "privacy_level": "private",
+        "sync_to_mobile": true,
+        "preferred_link": null,
+        "favorite_count": 0,
+        "comment_count": 0,
+        "comments": [],
+        "user_photo_count": 0,
+        "latitude": 38.619106,
+        "longitude": -106.239289,
+        "writable": false
+      },
+      "style": {
+        "stroke": "#E05C5C"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -106.239289,
+            38.619106,
+            4311.1,
+            0.0
+          ],
+          [
+            -106.239414,
+            38.619465,
+            4306.22,
+            0.0
+          ],
+          [
+            -106.239671,
+            38.61979,
+            4301.35,
+            0.0
+          ],
+          [
+            -106.240019,
+            38.620066,
+            4300.13,
+            0.0
+          ],
+          [
+            -106.240305,
+            38.620366,
+            4297.99,
+            0.0
+          ],
+          [
+            -106.240595,
+            38.62064,
+            4295.25,
+            0.0
+          ],
+          [
+            -106.240898,
+            38.62093,
+            4294.95,
+            0.0
+          ],
+          [
+            -106.24113,
+            38.621255,
+            4292.81,
+            0.0
+          ],
+          [
+            -106.241396,
+            38.621519,
+            4291.9,
+            0.0
+          ],
+          [
+            -106.241515,
+            38.62188,
+            4280.92,
+            0.0
+          ],
+          [
+            -106.241698,
+            38.622239,
+            4272.69,
+            0.0
+          ],
+          [
+            -106.241965,
+            38.622547,
+            4266.6,
+            0.0
+          ],
+          [
+            -106.2422,
+            38.622874,
+            4257.15,
+            0.0
+          ],
+          [
+            -106.242402,
+            38.623223,
+            4249.53,
+            0.0
+          ],
+          [
+            -106.242735,
+            38.623512,
+            4248.01,
+            0.0
+          ],
+          [
+            -106.243027,
+            38.623804,
+            4241.0,
+            0.0
+          ],
+          [
+            -106.24332,
+            38.6241,
+            4234.59,
+            0.0
+          ],
+          [
+            -106.243601,
+            38.624386,
+            4227.28,
+            0.0
+          ],
+          [
+            -106.243675,
+            38.62442,
+            4226.67,
+            0.0
+          ],
+          [
+            -106.243959,
+            38.624681,
+            4220.27,
+            0.0
+          ],
+          [
+            -106.244259,
+            38.624923,
+            4209.6,
+            0.0
+          ],
+          [
+            -106.244533,
+            38.625229,
+            4200.46,
+            0.0
+          ],
+          [
+            -106.244834,
+            38.625508,
+            4192.23,
+            0.0
+          ],
+          [
+            -106.245119,
+            38.625819,
+            4184.91,
+            0.0
+          ],
+          [
+            -106.245459,
+            38.626094,
+            4181.56,
+            0.0
+          ],
+          [
+            -106.245899,
+            38.626242,
+            4173.33,
+            0.0
+          ],
+          [
+            -106.246392,
+            38.626238,
+            4168.45,
+            0.0
+          ],
+          [
+            -106.246833,
+            38.626254,
+            4170.89,
+            0.0
+          ],
+          [
+            -106.247284,
+            38.626198,
+            4179.43,
+            0.0
+          ],
+          [
+            -106.247746,
+            38.626214,
+            4189.48,
+            0.0
+          ],
+          [
+            -106.248112,
+            38.626297,
+            4198.32,
+            0.0
+          ],
+          [
+            -106.248507,
+            38.62619,
+            4207.77,
+            0.0
+          ],
+          [
+            -106.248883,
+            38.626157,
+            4217.22,
+            0.0
+          ],
+          [
+            -106.249294,
+            38.626234,
+            4224.23,
+            0.0
+          ],
+          [
+            -106.249687,
+            38.626019,
+            4231.55,
+            0.0
+          ],
+          [
+            -106.25,
+            38.62574,
+            4233.38,
+            0.0
+          ],
+          [
+            -106.250432,
+            38.625624,
+            4247.09,
+            0.0
+          ],
+          [
+            -106.250862,
+            38.625518,
+            4260.81,
+            0.0
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -106.239289,
+          38.619106
+        ]
+      },
+      "id": "05293612-bc26-4a37-b73a-69019b25bc9a",
+      "properties": {
+        "id": "05293612-bc26-4a37-b73a-69019b25bc9a",
+        "updated_date": "2026-08-23T20:38:54Z",
+        "time_created": "2026-08-23T20:38:54Z",
+        "deleted": false,
+        "title": "Trailhead",
+        "public": false,
+        "is_active": true,
+        "revision": 1787517534,
+        "notes": "",
+        "latitude": 38.619106,
+        "longitude": -106.239289,
+        "elevation": 4311,
+        "attr": "route",
+        "track_id": "7b6a2f79-970f-417e-b2c6-924c3661d2c4",
+        "order": 0,
+        "folder": null,
+        "marker_type": "pin",
+        "marker_color": "#F42410",
+        "marker_decoration": null,
+        "sync_to_mobile": null,
+        "cover_photo_id": null,
+        "photos": []
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -106.239289,
+          38.619106
+        ]
+      },
+      "id": "d323632c-fd91-448f-b4d1-68946e08063e",
+      "properties": {
+        "id": "d323632c-fd91-448f-b4d1-68946e08063e",
+        "updated_date": "2026-08-23T20:38:54Z",
+        "time_created": "2026-08-23T20:38:54Z",
+        "deleted": false,
+        "title": "Summit",
+        "public": false,
+        "is_active": true,
+        "revision": 1787517534,
+        "notes": "",
+        "latitude": 38.619106,
+        "longitude": -106.239289,
+        "elevation": 4311,
+        "attr": "route",
+        "track_id": "7b6a2f79-970f-417e-b2c6-924c3661d2c4",
+        "order": 1,
+        "folder": null,
+        "marker_type": "pin",
+        "marker_color": "#F42410",
+        "marker_decoration": null,
+        "sync_to_mobile": null,
+        "cover_photo_id": null,
+        "photos": []
+      }
+    }
+  ]
+}

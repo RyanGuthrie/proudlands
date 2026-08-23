@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/hiking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List mountain ranges */
+        get: operations["list-hiking-ranges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hiking/{range}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List peaks within a mountain range */
+        get: operations["list-hiking-peaks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hiking/{range}/{peak}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List routes for a peak */
+        get: operations["list-hiking-routes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hiking/{range}/{peak}/{route}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a route's GeoJSON */
+        get: operations["get-hiking-route"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trail": {
         parameters: {
             query?: never;
@@ -123,6 +191,36 @@ export interface components {
              */
             type: string;
         };
+        HikingPeakListOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/HikingPeakListOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Peak names within the range */
+            peaks: string[] | null;
+        };
+        HikingRangeListOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/HikingRangeListOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Mountain range names */
+            ranges: string[] | null;
+        };
+        HikingRouteListOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/HikingRouteListOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Route names for the peak */
+            routes: string[] | null;
+        };
         PointOfInterest: {
             description: string;
             /** @enum {string} */
@@ -197,6 +295,137 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "list-hiking-ranges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HikingRangeListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-hiking-peaks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mountain range name */
+                range: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HikingPeakListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-hiking-routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mountain range name */
+                range: string;
+                /** @description Peak name */
+                peak: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HikingRouteListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-hiking-route": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mountain range name */
+                range: string;
+                /** @description Peak name */
+                peak: string;
+                /** @description Route name */
+                route: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-trails": {
         parameters: {
             query?: never;

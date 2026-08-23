@@ -187,13 +187,18 @@
 
 		map.on('style.load', () => {
 			applyTrailGeometry(activeTrailGeometry);
+			applyHikingRoute(activeHikingRoute);
 		});
 	});
 
 	onDestroy(() => {
 		cancelTrailsRetry?.();
 		cancelDetailRetry?.();
+		cancelHikingRetry?.();
+		cancelRouteDetailRetry?.();
+		clearHikingPreview();
 		clearPOIMarkers();
+		clearHikingPointMarkers();
 		map?.remove();
 	});
 
@@ -480,7 +485,519 @@
 
 	onMount(() => {
 		fetchTrails();
+		loadHikingLevel([]);
 	});
+
+	// Hiking routes (mountain range → peak → route hierarchy from /hiking)
+	type HikingFeature = {
+		type: 'Feature';
+		properties: Record<string, any>;
+		geometry: { type: string; coordinates: unknown };
+	};
+	type HikingRouteGeoJSON = { type: 'FeatureCollection'; features: HikingFeature[] };
+
+	const HIKING_SOURCE_ID = 'hiking-route';
+	const HIKING_LINE_LAYER = 'hiking-route-line';
+	const HIKING_PREVIEW_SOURCE_ID = 'hiking-route-preview';
+	const HIKING_PREVIEW_LINE_LAYER = 'hiking-route-preview-line';
+
+	let hikingPointMarkers: Array<{ marker: maplibregl.Marker; feature: HikingFeature }> = [];
+	let activeHikingPoint = $state<HikingFeature | null>(null);
+
+	function hikingPointIconType(f: HikingFeature): 'summit' | 'trailhead' {
+		return String(f.properties?.title ?? '').toLowerCase() === 'summit' ? 'summit' : 'trailhead';
+	}
+
+	function clearHikingPointMarkers() {
+		for (const { marker } of hikingPointMarkers) marker.remove();
+		hikingPointMarkers = [];
+	}
+
+	function applyHikingRoute(fc: HikingRouteGeoJSON | null) {
+		if (!map) return;
+		if (map.getLayer(HIKING_LINE_LAYER)) map.removeLayer(HIKING_LINE_LAYER);
+		if (map.getSource(HIKING_SOURCE_ID)) map.removeSource(HIKING_SOURCE_ID);
+		clearHikingPointMarkers();
+		if (!fc) return;
+
+		map.addSource(HIKING_SOURCE_ID, {
+			type: 'geojson',
+			data: fc as maplibregl.GeoJSONSourceSpecification['data'],
+		});
+
+		map.addLayer({
+			id: HIKING_LINE_LAYER,
+			type: 'line',
+			source: HIKING_SOURCE_ID,
+			filter: ['==', ['geometry-type'], 'LineString'],
+			layout: { 'line-cap': 'round', 'line-join': 'round' },
+			paint: { 'line-color': '#e07a3f', 'line-width': 3.5, 'line-opacity': 0.9 },
+		});
+
+		for (const f of fc.features) {
+			if (f.geometry.type !== 'Point') continue;
+			const iconType = hikingPointIconType(f);
+			const [lng, lat] = f.geometry.coordinates as [number, number];
+			const el = document.createElement('button');
+			el.className = `poi-marker poi-type-${iconType}`;
+			el.textContent = POI_ICON_LABELS[iconType] ?? '·';
+			el.title = String(f.properties?.title ?? '');
+			el.addEventListener('click', (e) => {
+				e.stopPropagation();
+				activeHikingPoint = activeHikingPoint === f ? null : f;
+			});
+			const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+			hikingPointMarkers.push({ marker, feature: f });
+		}
+	}
+
+	$effect(() => {
+		const sel = activeHikingPoint;
+		for (const { marker, feature } of hikingPointMarkers) {
+			marker.getElement().classList.toggle('active', feature === sel);
+		}
+	});
+
+	// Lightweight preview line shown while hovering a route row, distinct from
+	// the persistent selected-route layer so it never disturbs a real selection.
+	function applyHikingPreview(fc: HikingRouteGeoJSON | null) {
+		if (!map) return;
+		if (map.getLayer(HIKING_PREVIEW_LINE_LAYER)) map.removeLayer(HIKING_PREVIEW_LINE_LAYER);
+		if (map.getSource(HIKING_PREVIEW_SOURCE_ID)) map.removeSource(HIKING_PREVIEW_SOURCE_ID);
+		if (!fc) return;
+
+		map.addSource(HIKING_PREVIEW_SOURCE_ID, {
+			type: 'geojson',
+			data: fc as maplibregl.GeoJSONSourceSpecification['data'],
+		});
+
+		map.addLayer({
+			id: HIKING_PREVIEW_LINE_LAYER,
+			type: 'line',
+			source: HIKING_PREVIEW_SOURCE_ID,
+			filter: ['==', ['geometry-type'], 'LineString'],
+			layout: { 'line-cap': 'round', 'line-join': 'round' },
+			paint: {
+				'line-color': '#ff1a1a',
+				'line-width': 3,
+				'line-opacity': 0.85,
+				'line-dasharray': [2, 1.5],
+			},
+		});
+	}
+
+	// Collects coordinates from every LineString/MultiLineString feature in the
+	// collection — used both for a single route and for several routes merged
+	// together (e.g. all routes on a peak) so bounds cover all of them.
+	function getAllLineCoords(fc: HikingRouteGeoJSON): number[][] {
+		const coords: number[][] = [];
+		for (const f of fc.features) {
+			if (f.geometry.type === 'LineString') {
+				coords.push(...(f.geometry.coordinates as number[][]));
+			} else if (f.geometry.type === 'MultiLineString') {
+				coords.push(...(f.geometry.coordinates as number[][][]).flat());
+			}
+		}
+		return coords;
+	}
+
+	function computeRouteBounds(fc: HikingRouteGeoJSON): maplibregl.LngLatBounds | null {
+		const coords = getAllLineCoords(fc);
+		if (coords.length === 0) return null;
+		return coords.reduce(
+			(b, c) => b.extend([c[0], c[1]] as [number, number]),
+			new maplibregl.LngLatBounds([coords[0][0], coords[0][1]], [coords[0][0], coords[0][1]])
+		);
+	}
+
+	function boundsIntersect(a: maplibregl.LngLatBounds, b: maplibregl.LngLatBounds): boolean {
+		return (
+			a.getWest() <= b.getEast() &&
+			a.getEast() >= b.getWest() &&
+			a.getSouth() <= b.getNorth() &&
+			a.getNorth() >= b.getSouth()
+		);
+	}
+
+	// Route geojson cache, shared between hover previews and real selection so
+	// hovering a route before clicking it doesn't cost a second fetch.
+	const hikingRouteCache = new Map<string, HikingRouteGeoJSON>();
+
+	function hikingRouteKey(range: string, peak: string, route: string) {
+		return `${range}/${peak}/${route}`;
+	}
+
+	async function fetchHikingRouteRaw(range: string, peak: string, route: string) {
+		return api.GET('/hiking/{range}/{peak}/{route}', { params: { path: { range, peak, route } } });
+	}
+
+	async function fetchHikingRouteCached(range: string, peak: string, route: string): Promise<HikingRouteGeoJSON | null> {
+		const key = hikingRouteKey(range, peak, route);
+		const cached = hikingRouteCache.get(key);
+		if (cached) return cached;
+		try {
+			const { data, error } = await fetchHikingRouteRaw(range, peak, route);
+			if (error || !data) return null;
+			const fc = data as unknown as HikingRouteGeoJSON;
+			hikingRouteCache.set(key, fc);
+			return fc;
+		} catch {
+			return null;
+		}
+	}
+
+	// Route-name-list cache for a peak, so re-hovering the same peak doesn't refetch.
+	const hikingPeakRoutesCache = new Map<string, string[]>();
+
+	async function fetchPeakRouteNamesCached(range: string, peak: string): Promise<string[] | null> {
+		const key = hikingRouteKey(range, peak, '');
+		const cached = hikingPeakRoutesCache.get(key);
+		if (cached) return cached;
+		try {
+			const { data, error } = await api.GET('/hiking/{range}/{peak}', { params: { path: { range, peak } } });
+			if (error || !data?.routes) return null;
+			hikingPeakRoutesCache.set(key, data.routes);
+			return data.routes;
+		} catch {
+			return null;
+		}
+	}
+
+	// Peak-name-list cache for a range, so re-hovering the same range doesn't refetch.
+	const hikingRangePeaksCache = new Map<string, string[]>();
+
+	async function fetchRangePeakNamesCached(range: string): Promise<string[] | null> {
+		const cached = hikingRangePeaksCache.get(range);
+		if (cached) return cached;
+		try {
+			const { data, error } = await api.GET('/hiking/{range}', { params: { path: { range } } });
+			if (error || !data?.peaks) return null;
+			hikingRangePeaksCache.set(range, data.peaks);
+			return data.peaks;
+		} catch {
+			return null;
+		}
+	}
+
+	// Fetches (and flattens) every route feature under a peak, or a whole range.
+	// Shared by hover previews and the click-to-show context display below.
+	async function fetchPeakRouteFeatures(range: string, peak: string): Promise<HikingFeature[]> {
+		const routeNames = await fetchPeakRouteNamesCached(range, peak);
+		if (!routeNames || routeNames.length === 0) return [];
+		const fcs = await Promise.all(routeNames.map((r) => fetchHikingRouteCached(range, peak, r)));
+		return fcs.flatMap((fc) => fc?.features ?? []);
+	}
+
+	async function fetchRangeRouteFeatures(range: string): Promise<HikingFeature[]> {
+		const peakNames = await fetchRangePeakNamesCached(range);
+		if (!peakNames || peakNames.length === 0) return [];
+		const nested = await Promise.all(peakNames.map((peak) => fetchPeakRouteFeatures(range, peak)));
+		return nested.flat();
+	}
+
+	const HOVER_PREVIEW_DELAY_MS = 150;
+	let hoverTimer: ReturnType<typeof setTimeout> | undefined;
+	let hoverToken = 0;
+	let previewKey: string | null = null;
+
+	function clearHikingPreview() {
+		if (hoverTimer) {
+			clearTimeout(hoverTimer);
+			hoverTimer = undefined;
+		}
+		hoverToken++;
+		previewKey = null;
+		applyHikingPreview(null);
+	}
+
+	// Preview a single route (hovering a route row at the routes level).
+	async function showHikingRoutePreview(name: string, token: number) {
+		if (hikingPath.length !== 2 || !map) return;
+		if (selectedRouteName === name && activeHikingRoute) return; // already shown as the real selection
+
+		const [range, peak] = hikingPath;
+		const fc = await fetchHikingRouteCached(range, peak, name);
+		if (token !== hoverToken || !fc || !map) return;
+
+		const bounds = computeRouteBounds(fc);
+		if (!bounds || !boundsIntersect(bounds, map.getBounds())) return;
+
+		previewKey = name;
+		applyHikingPreview(fc);
+	}
+
+	// Preview every route on a peak at once (hovering a peak row at the peaks level).
+	async function showHikingPeakPreview(peakName: string, token: number) {
+		if (hikingPath.length !== 1 || !map) return;
+		const [range] = hikingPath;
+
+		const features = await fetchPeakRouteFeatures(range, peakName);
+		if (token !== hoverToken || features.length === 0 || !map) return;
+		const combined: HikingRouteGeoJSON = { type: 'FeatureCollection', features };
+
+		const bounds = computeRouteBounds(combined);
+		if (!bounds || !boundsIntersect(bounds, map.getBounds())) return;
+
+		previewKey = peakName;
+		applyHikingPreview(combined);
+	}
+
+	// Preview every route in a range at once (hovering a range row at the ranges level).
+	async function showHikingRangePreview(rangeName: string, token: number) {
+		if (hikingPath.length !== 0 || !map) return;
+
+		const features = await fetchRangeRouteFeatures(rangeName);
+		if (token !== hoverToken || features.length === 0 || !map) return;
+		const combined: HikingRouteGeoJSON = { type: 'FeatureCollection', features };
+
+		const bounds = computeRouteBounds(combined);
+		if (!bounds || !boundsIntersect(bounds, map.getBounds())) return;
+
+		previewKey = rangeName;
+		applyHikingPreview(combined);
+	}
+
+	// Clicking into a range or peak zooms the map to fit its routes, without
+	// drawing them persistently — only an explicitly selected route stays shown.
+	let hikingZoomToken = 0;
+
+	async function zoomToHikingRange(rangeName: string, token: number) {
+		const features = await fetchRangeRouteFeatures(rangeName);
+		if (token !== hikingZoomToken || features.length === 0 || !map) return;
+		const bounds = computeRouteBounds({ type: 'FeatureCollection', features });
+		if (bounds) map.fitBounds(bounds, { padding: 60, duration: 1200 });
+	}
+
+	async function zoomToHikingPeak(range: string, peak: string, token: number) {
+		const features = await fetchPeakRouteFeatures(range, peak);
+		if (token !== hikingZoomToken || features.length === 0 || !map) return;
+		const bounds = computeRouteBounds({ type: 'FeatureCollection', features });
+		if (bounds) map.fitBounds(bounds, { padding: 60, duration: 1200 });
+	}
+
+	function zoomToHikingPath(path: string[]) {
+		const token = ++hikingZoomToken;
+		if (path.length === 1) {
+			void zoomToHikingRange(path[0], token);
+		} else if (path.length === 2) {
+			void zoomToHikingPeak(path[0], path[1], token);
+		}
+	}
+
+	function onRouteRowMouseEnter(item: string) {
+		if (hoverTimer) clearTimeout(hoverTimer);
+		const token = ++hoverToken;
+		const level = hikingPath.length;
+		hoverTimer = setTimeout(() => {
+			hoverTimer = undefined;
+			if (level === 2) {
+				void showHikingRoutePreview(item, token);
+			} else if (level === 1) {
+				void showHikingPeakPreview(item, token);
+			} else {
+				void showHikingRangePreview(item, token);
+			}
+		}, HOVER_PREVIEW_DELAY_MS);
+	}
+
+	function onRouteRowMouseLeave(item: string) {
+		if (hoverTimer) {
+			clearTimeout(hoverTimer);
+			hoverTimer = undefined;
+		}
+		hoverToken++;
+		if (previewKey === item) {
+			previewKey = null;
+			applyHikingPreview(null);
+		}
+	}
+
+	function formatHikingLabel(slug: string): string {
+		return slug
+			.split('-')
+			.map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+			.join(' ');
+	}
+
+	// hikingPath: [] = ranges, [range] = peaks, [range, peak] = routes
+	let hikingPath = $state<string[]>([]);
+	let hikingItems = $state<string[]>([]);
+	let hikingLoading = $state(false);
+	let hikingError = $state('');
+	let cancelHikingRetry: CancelRetry | undefined;
+	let hikingFailing = false;
+
+	let selectedRouteName = $state<string | null>(null);
+	let activeHikingRoute = $state<HikingRouteGeoJSON | null>(null);
+	let routeDetailLoading = $state(false);
+	let routeDetailError = $state('');
+	let cancelRouteDetailRetry: CancelRetry | undefined;
+	let routeDetailFailing = false;
+
+	let routeMeta = $derived.by(() => {
+		if (!activeHikingRoute) return null;
+		const f = activeHikingRoute.features.find(
+			(f) => f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString'
+		);
+		return f?.properties ?? null;
+	});
+
+	async function attemptLoadHikingLevel(path: string[]): Promise<boolean> {
+		try {
+			let items: string[] | null | undefined;
+			let err: { title?: string; detail?: string } | undefined;
+			if (path.length === 0) {
+				const { data, error } = await api.GET('/hiking');
+				items = data?.ranges;
+				err = error;
+			} else if (path.length === 1) {
+				const { data, error } = await api.GET('/hiking/{range}', { params: { path: { range: path[0] } } });
+				items = data?.peaks;
+				err = error;
+			} else {
+				const { data, error } = await api.GET('/hiking/{range}/{peak}', {
+					params: { path: { range: path[0], peak: path[1] } },
+				});
+				items = data?.routes;
+				err = error;
+			}
+			if (err || items == null) {
+				hikingError = 'Could not load routes. Retrying…';
+				if (!hikingFailing) {
+					hikingFailing = true;
+					reportError(describeApiError('Failed to load hiking routes', err));
+				}
+				return false;
+			}
+			hikingItems = items;
+			hikingError = '';
+			hikingFailing = false;
+			return true;
+		} catch (err) {
+			hikingError = 'Could not load routes. Retrying…';
+			if (!hikingFailing) {
+				hikingFailing = true;
+				reportError(describeNetworkError('Failed to load hiking routes', err));
+			}
+			return false;
+		}
+	}
+
+	async function loadHikingLevel(path: string[]) {
+		cancelHikingRetry?.();
+		hikingLoading = true;
+		hikingItems = [];
+		const success = await attemptLoadHikingLevel(path);
+		hikingLoading = false;
+		if (!success) {
+			cancelHikingRetry = retryWithBackoff(() => attemptLoadHikingLevel(path));
+		}
+	}
+
+	function resetHikingSelection() {
+		cancelRouteDetailRetry?.();
+		clearHikingPreview();
+		selectedRouteName = null;
+		activeHikingRoute = null;
+		activeHikingPoint = null;
+		routeDetailError = '';
+		routeDetailFailing = false;
+		applyHikingRoute(null);
+	}
+
+	function enterHiking(item: string) {
+		if (hikingPath.length < 2) {
+			resetHikingSelection();
+			hikingPath = [...hikingPath, item];
+			loadHikingLevel(hikingPath);
+			zoomToHikingPath(hikingPath);
+		} else {
+			selectHikingRoute(item);
+		}
+	}
+
+	function goToHikingLevel(index: number) {
+		const newPath = index < 0 ? [] : hikingPath.slice(0, index + 1);
+		const changingLevel = newPath.length !== hikingPath.length;
+		resetHikingSelection();
+		hikingPath = newPath;
+		if (changingLevel) {
+			loadHikingLevel(hikingPath);
+		}
+		zoomToHikingPath(hikingPath);
+	}
+
+	async function attemptLoadRouteDetail(range: string, peak: string, route: string): Promise<boolean> {
+		try {
+			const key = hikingRouteKey(range, peak, route);
+			let fc = hikingRouteCache.get(key);
+			if (!fc) {
+				const { data, error } = await fetchHikingRouteRaw(range, peak, route);
+				if (error || !data) {
+					routeDetailError = 'Could not load route. Retrying…';
+					if (!routeDetailFailing) {
+						routeDetailFailing = true;
+						reportError(describeApiError(`Failed to load route "${route}"`, error));
+					}
+					return false;
+				}
+				fc = data as unknown as HikingRouteGeoJSON;
+				hikingRouteCache.set(key, fc);
+			}
+			activeHikingRoute = fc;
+			applyHikingRoute(activeHikingRoute);
+			routeDetailError = '';
+			routeDetailFailing = false;
+			return true;
+		} catch (err) {
+			routeDetailError = 'Could not load route. Retrying…';
+			if (!routeDetailFailing) {
+				routeDetailFailing = true;
+				reportError(describeNetworkError(`Failed to load route "${route}"`, err));
+			}
+			return false;
+		}
+	}
+
+	async function ensureHikingRouteSelected(name: string): Promise<boolean> {
+		if (selectedRouteName === name) {
+			return !!activeHikingRoute;
+		}
+		cancelRouteDetailRetry?.();
+		clearHikingPreview();
+		hikingZoomToken++; // invalidate any pending range/peak zoom
+		selectedRouteName = name;
+		activeHikingRoute = null;
+		activeHikingPoint = null;
+		routeDetailError = '';
+		routeDetailLoading = true;
+		applyHikingRoute(null);
+
+		const [range, peak] = hikingPath;
+		const success = await attemptLoadRouteDetail(range, peak, name);
+		routeDetailLoading = false;
+		if (!success) {
+			cancelRouteDetailRetry = retryWithBackoff(() => attemptLoadRouteDetail(range, peak, name));
+		} else {
+			flyToHikingRoute();
+		}
+		return success;
+	}
+
+	async function selectHikingRoute(name: string) {
+		if (selectedRouteName === name) {
+			resetHikingSelection();
+			return;
+		}
+		await ensureHikingRouteSelected(name);
+	}
+
+	function flyToHikingRoute() {
+		if (!map || !activeHikingRoute) return;
+		const bounds = computeRouteBounds(activeHikingRoute);
+		if (!bounds) return;
+		map.fitBounds(bounds, { padding: 60, duration: 1200 });
+	}
 </script>
 
 <div class="map-page">
@@ -626,6 +1143,103 @@
 								{#if activePOI.image_url}
 									<img class="poi-image" src={activePOI.image_url} alt={activePOI.name} />
 								{/if}
+							</div>
+						{/if}
+					{/if}
+				</section>
+
+				<section class="sidebar-section routes-section">
+					<h2>Hiking Routes</h2>
+
+					<div class="hiking-breadcrumb">
+						<button
+							class="crumb"
+							class:active={hikingPath.length === 0}
+							onclick={() => goToHikingLevel(-1)}
+						>
+							Ranges
+						</button>
+						{#each hikingPath as segment, i}
+							<span class="crumb-sep">/</span>
+							<button
+								class="crumb"
+								class:active={hikingPath.length === i + 1 && !selectedRouteName}
+								onclick={() => goToHikingLevel(i)}
+							>
+								{formatHikingLabel(segment)}
+							</button>
+						{/each}
+						{#if selectedRouteName}
+							<span class="crumb-sep">/</span>
+							<span class="crumb active">{formatHikingLabel(selectedRouteName)}</span>
+						{/if}
+					</div>
+
+					{#if !selectedRouteName}
+						{#if hikingError}
+							<p class="trail-error">{hikingError}</p>
+						{:else if hikingLoading}
+							<p class="trail-loading">Loading…</p>
+						{:else if hikingItems.length === 0}
+							<p class="trail-empty">Nothing here</p>
+						{:else}
+							<ul class="trail-list">
+								{#each hikingItems as item}
+									<li
+										class="trail-row"
+										onmouseenter={() => onRouteRowMouseEnter(item)}
+										onmouseleave={() => onRouteRowMouseLeave(item)}
+									>
+										<button class="trail-item hiking-item" onclick={() => enterHiking(item)}>
+											{formatHikingLabel(item)}
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					{:else}
+						<div class="trail-detail">
+							{#if routeDetailLoading}
+								<p class="trail-loading">Loading…</p>
+							{:else if routeDetailError}
+								<p class="trail-error">{routeDetailError}</p>
+							{:else if routeMeta}
+								<div class="trail-detail-header">
+									<span class="trail-name">{routeMeta.title ?? formatHikingLabel(selectedRouteName)}</span>
+								</div>
+								<dl class="data-list">
+									<dt>Distance</dt>
+									<dd>{(routeMeta.distance / 1609.344).toFixed(2)} mi</dd>
+									<dt>Elevation Gain</dt>
+									<dd>{Math.round(routeMeta.total_ascent * 3.28084)} ft</dd>
+									<dt>Elevation Loss</dt>
+									<dd>{Math.round(routeMeta.total_descent * 3.28084)} ft</dd>
+								</dl>
+								<div class="location-actions">
+									<button class="loc-btn" onclick={() => copyCoords(routeMeta.latitude, routeMeta.longitude)}>
+										{#if coordsCopied}
+											<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 2.5L6 10 2.5 6.5 1 8l5 5 9-9z"/></svg>
+											Copied
+										{:else}
+											<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M4 4h8v10H4zM2 2h8v1H2zM6 0h8v12h-1V1H6z"/></svg>
+											Copy coords
+										{/if}
+									</button>
+								</div>
+							{/if}
+						</div>
+
+						{#if activeHikingPoint}
+							<div class="poi-detail">
+								<div class="poi-detail-header">
+									<span class="poi-badge poi-type-{hikingPointIconType(activeHikingPoint)}">
+										{POI_ICON_LABELS[hikingPointIconType(activeHikingPoint)] ?? '·'}
+									</span>
+									<span class="poi-name">{activeHikingPoint.properties.title}</span>
+								</div>
+								<p class="poi-desc">
+									Elevation: {Math.round((activeHikingPoint.properties.elevation ?? 0) * 3.28084)} ft
+								</p>
 							</div>
 						{/if}
 					{/if}
@@ -1238,6 +1852,46 @@
 
 	.trail-error {
 		color: #f08080;
+	}
+
+	/* Hiking routes breadcrumb */
+	.hiking-breadcrumb {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.2rem;
+		margin-bottom: 0.4rem;
+	}
+
+	.crumb {
+		background: transparent;
+		border: none;
+		border-radius: 3px;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.75rem;
+		padding: 0.1rem 0.25rem;
+		transition: color 0.15s, background 0.15s;
+	}
+
+	button.crumb:hover {
+		color: var(--text);
+		background: var(--border);
+	}
+
+	.crumb.active {
+		color: var(--accent);
+		font-weight: 600;
+	}
+
+	.crumb-sep {
+		color: var(--text-muted);
+		font-size: 0.72rem;
+	}
+
+	.hiking-item {
+		text-transform: none;
 	}
 
 	/* POI markers — :global() because they're imperative DOM elements */

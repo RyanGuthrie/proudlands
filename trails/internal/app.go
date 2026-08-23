@@ -18,6 +18,7 @@ import (
 func setupAPI(r chi.Router) huma.API {
 	api := humachi.New(r, huma.DefaultConfig("Proud Trails API", "1.0.0"))
 	registerTrailRoutes(api)
+	registerHikingRoutes(api)
 	return api
 }
 

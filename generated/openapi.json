@@ -82,6 +82,90 @@
         },
         "type": "object"
       },
+      "HikingPeakListOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/HikingPeakListOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "peaks": {
+            "description": "Peak names within the range",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "peaks"
+        ],
+        "type": "object"
+      },
+      "HikingRangeListOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/HikingRangeListOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "ranges": {
+            "description": "Mountain range names",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ranges"
+        ],
+        "type": "object"
+      },
+      "HikingRouteListOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/HikingRouteListOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "routes": {
+            "description": "Route names for the peak",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "routes"
+        ],
+        "type": "object"
+      },
       "PointOfInterest": {
         "additionalProperties": false,
         "properties": {
@@ -313,6 +397,194 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/hiking": {
+      "get": {
+        "operationId": "list-hiking-ranges",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HikingRangeListOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List mountain ranges",
+        "tags": [
+          "Hiking"
+        ]
+      }
+    },
+    "/hiking/{range}": {
+      "get": {
+        "operationId": "list-hiking-peaks",
+        "parameters": [
+          {
+            "description": "Mountain range name",
+            "in": "path",
+            "name": "range",
+            "required": true,
+            "schema": {
+              "description": "Mountain range name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HikingPeakListOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List peaks within a mountain range",
+        "tags": [
+          "Hiking"
+        ]
+      }
+    },
+    "/hiking/{range}/{peak}": {
+      "get": {
+        "operationId": "list-hiking-routes",
+        "parameters": [
+          {
+            "description": "Mountain range name",
+            "in": "path",
+            "name": "range",
+            "required": true,
+            "schema": {
+              "description": "Mountain range name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Peak name",
+            "in": "path",
+            "name": "peak",
+            "required": true,
+            "schema": {
+              "description": "Peak name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HikingRouteListOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List routes for a peak",
+        "tags": [
+          "Hiking"
+        ]
+      }
+    },
+    "/hiking/{range}/{peak}/{route}": {
+      "get": {
+        "operationId": "get-hiking-route",
+        "parameters": [
+          {
+            "description": "Mountain range name",
+            "in": "path",
+            "name": "range",
+            "required": true,
+            "schema": {
+              "description": "Mountain range name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Peak name",
+            "in": "path",
+            "name": "peak",
+            "required": true,
+            "schema": {
+              "description": "Peak name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Route name",
+            "in": "path",
+            "name": "route",
+            "required": true,
+            "schema": {
+              "description": "Route name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a route's GeoJSON",
+        "tags": [
+          "Hiking"
+        ]
+      }
+    },
     "/trail": {
       "get": {
         "operationId": "list-trails",

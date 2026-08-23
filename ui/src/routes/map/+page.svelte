@@ -4,6 +4,8 @@
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { api } from '$lib/api/client';
 	import type { components } from '$lib/api/types';
+	import { reportError, describeApiError, describeNetworkError } from '$lib/errors.svelte';
+	import { retryWithBackoff, type CancelRetry } from '$lib/retry';
 
 	let mapContainer: HTMLDivElement;
 	let map: maplibregl.Map;
@@ -189,6 +191,8 @@
 	});
 
 	onDestroy(() => {
+		cancelTrailsRetry?.();
+		cancelDetailRetry?.();
 		clearPOIMarkers();
 		map?.remove();
 	});
@@ -320,16 +324,115 @@
 		!trailSearch.trim() && !showAllTrails ? Math.max(0, filteredTrails.length - TRAIL_PAGE_SIZE) : 0
 	);
 
-	async function fetchTrails() {
-		const { data, error } = await api.GET('/trail');
-		if (error || !data) {
-			trailsError = 'Could not load trails';
-			return;
+	let cancelTrailsRetry: CancelRetry | undefined;
+	let trailsFailing = false;
+
+	async function attemptFetchTrails(): Promise<boolean> {
+		try {
+			const { data, error } = await api.GET('/trail');
+			if (error || !data) {
+				trailsError = 'Could not load trails. Retrying…';
+				if (!trailsFailing) {
+					trailsFailing = true;
+					reportError(describeApiError('Failed to load trails', error));
+				}
+				return false;
+			}
+			trailNames = data.resources ?? [];
+			trailsError = '';
+			trailsFailing = false;
+			return true;
+		} catch (err) {
+			trailsError = 'Could not load trails. Retrying…';
+			if (!trailsFailing) {
+				trailsFailing = true;
+				reportError(describeNetworkError('Failed to load trails', err));
+			}
+			return false;
 		}
-		trailNames = data.resources ?? [];
+	}
+
+	async function fetchTrails() {
+		cancelTrailsRetry?.();
+		const success = await attemptFetchTrails();
+		if (!success) {
+			cancelTrailsRetry = retryWithBackoff(attemptFetchTrails);
+		}
+	}
+
+	let cancelDetailRetry: CancelRetry | undefined;
+	let metaFailing = false;
+	let geoFailing = false;
+	let poiFailing = false;
+
+	function resetDetailFailingFlags() {
+		metaFailing = false;
+		geoFailing = false;
+		poiFailing = false;
+	}
+
+	async function attemptLoadTrailDetail(name: string): Promise<boolean> {
+		try {
+			const [metaResult, geoResult, poiResult] = await Promise.all([
+				api.GET('/trail/{name}', { params: { path: { name } } }),
+				api.GET('/trail/{name}/geometry', { params: { path: { name } } }),
+				api.GET('/trail/{name}/pois', { params: { path: { name } } }),
+			]);
+
+			trailDetailLoading = false;
+			let ok = true;
+
+			if (metaResult.error || !metaResult.data) {
+				ok = false;
+				trailDetailError = 'Could not load trail details. Retrying…';
+				if (!metaFailing) {
+					metaFailing = true;
+					reportError(describeApiError(`Failed to load details for "${name}"`, metaResult.error));
+				}
+			} else {
+				trailDetail = metaResult.data;
+				trailDetailError = '';
+				metaFailing = false;
+			}
+
+			if (!geoResult.error && geoResult.data) {
+				activeTrailGeometry = geoResult.data;
+				applyTrailGeometry(activeTrailGeometry);
+				geoFailing = false;
+			} else if (geoResult.error) {
+				ok = false;
+				if (!geoFailing) {
+					geoFailing = true;
+					reportError(describeApiError(`Failed to load geometry for "${name}"`, geoResult.error));
+				}
+			}
+
+			if (!poiResult.error && poiResult.data) {
+				applyPOIs(poiResult.data.pois ?? []);
+				poiFailing = false;
+			} else if (poiResult.error) {
+				ok = false;
+				if (!poiFailing) {
+					poiFailing = true;
+					reportError(describeApiError(`Failed to load points of interest for "${name}"`, poiResult.error));
+				}
+			}
+
+			return ok;
+		} catch (err) {
+			trailDetailLoading = false;
+			trailDetailError = 'Could not load trail details. Retrying…';
+			if (!metaFailing) {
+				metaFailing = true;
+				reportError(describeNetworkError(`Failed to load trail data for "${name}"`, err));
+			}
+			return false;
+		}
 	}
 
 	async function selectTrail(name: string) {
+		cancelDetailRetry?.();
+
 		if (selectedTrail === name) {
 			selectedTrail = '';
 			trailDetail = null;
@@ -337,6 +440,7 @@
 			activePOI = null;
 			applyTrailGeometry(null);
 			clearPOIMarkers();
+			resetDetailFailingFlags();
 			return;
 		}
 		selectedTrail = name;
@@ -347,36 +451,27 @@
 		activePOI = null;
 		applyTrailGeometry(null);
 		clearPOIMarkers();
+		resetDetailFailingFlags();
 
-		const [metaResult, geoResult, poiResult] = await Promise.all([
-			api.GET('/trail/{name}', { params: { path: { name } } }),
-			api.GET('/trail/{name}/geometry', { params: { path: { name } } }),
-			api.GET('/trail/{name}/pois', { params: { path: { name } } }),
-		]);
-
-		trailDetailLoading = false;
-
-		if (metaResult.error || !metaResult.data) {
-			trailDetailError = 'Could not load trail details';
-		} else {
-			trailDetail = metaResult.data;
-		}
-
-		if (!geoResult.error && geoResult.data) {
-			activeTrailGeometry = geoResult.data;
-			applyTrailGeometry(activeTrailGeometry);
-		}
-
-		if (!poiResult.error && poiResult.data) {
-			applyPOIs(poiResult.data.pois ?? []);
+		const success = await attemptLoadTrailDetail(name);
+		if (!success) {
+			cancelDetailRetry = retryWithBackoff(() => attemptLoadTrailDetail(name));
 		}
 	}
 
 	async function flyToTrail(name: string) {
 		let detail: TrailDetail | null = selectedTrail === name ? trailDetail : null;
 		if (!detail) {
-			const { data } = await api.GET('/trail/{name}', { params: { path: { name } } });
-			if (data) detail = data;
+			try {
+				const { data, error } = await api.GET('/trail/{name}', { params: { path: { name } } });
+				if (data) {
+					detail = data;
+				} else if (error) {
+					reportError(describeApiError(`Failed to locate "${name}"`, error));
+				}
+			} catch (err) {
+				reportError(describeNetworkError(`Failed to locate "${name}"`, err));
+			}
 		}
 		if (detail) {
 			map.flyTo({ center: [detail.longitude, detail.latitude], zoom: Math.max(zoom, 12), duration: 1200 });

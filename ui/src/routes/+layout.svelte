@@ -1,5 +1,6 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
+	import ErrorToast from '$lib/components/ErrorToast.svelte';
 
 	let { children } = $props();
 </script>
@@ -38,3 +39,5 @@
 </svelte:head>
 
 {@render children()}
+
+<ErrorToast />
